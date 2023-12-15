@@ -13,16 +13,50 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     }
 
     private val listItems = mutableListOf<ConversationDetailViewModel.MessageListItem>()
+    private var onMessageLongClickCallback: OnMessageLongClickCallback? = null
 
+
+    fun setOnMessageLongClick(onMessageLongClickCallback: OnMessageLongClickCallback){
+        this.onMessageLongClickCallback = onMessageLongClickCallback
+    }
     fun setData(newItems: List<ConversationDetailViewModel.MessageListItem>) {
         listItems.clear()
         listItems.addAll(newItems)
+        newItems.filter {item ->
+            item.itemType == ConversationDetailViewModel.MessageListItem.ITEM_TYPE_DELETE
+        }.forEach { deletedItem ->
+            listItems.removeIf {
+                val delete = (deletedItem as ConversationDetailViewModel.MessageListItem.Delete)
+                if (it is ConversationDetailViewModel.MessageListItem.Message){
+                    it.message.id == delete.message.body
+                }else{
+                    false
+                }
+            }
+        }
         notifyDataSetChanged()
     }
 
     fun addItem(item: ConversationDetailViewModel.MessageListItem) {
-        listItems.add(0, item)
-        notifyDataSetChanged()
+        when(item.itemType){
+            ConversationDetailViewModel.MessageListItem.ITEM_TYPE_MESSAGE -> {
+                listItems.add(0, item)
+                notifyDataSetChanged()
+            }
+            ConversationDetailViewModel.MessageListItem.ITEM_TYPE_DELETE -> {
+                val delete = (item as ConversationDetailViewModel.MessageListItem.Delete)
+                listItems.removeIf {
+                    if (it is ConversationDetailViewModel.MessageListItem.Message){
+                        it.message.id == delete.message.body
+                    }else{
+                        false
+                    }
+                }
+                listItems.add(0 , delete)
+                notifyDataSetChanged()
+            }
+        }
+
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -32,6 +66,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 val binding = ListItemMessageBinding.inflate(inflater, parent, false)
                 MessageViewHolder(binding)
             }
+            ConversationDetailViewModel.MessageListItem.ITEM_TYPE_DELETE -> {
+                val binding = ListItemMessageBinding.inflate(inflater, parent, false)
+                DeleteViewHolder(binding)
+            }
             else -> throw IllegalArgumentException("Unsupported view type $viewType")
         }
     }
@@ -40,7 +78,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         val item = listItems[position]
         when (holder) {
             is MessageViewHolder -> {
-                holder.bind(item as ConversationDetailViewModel.MessageListItem.Message)
+                holder.bind(item as ConversationDetailViewModel.MessageListItem.Message, onMessageLongClickCallback)
+            }
+            is DeleteViewHolder -> {
+                holder.bind(item as ConversationDetailViewModel.MessageListItem.Delete)
             }
             else -> throw IllegalArgumentException("Unsupported view holder")
         }
@@ -51,4 +92,8 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun getItemCount() = listItems.size
 
     override fun getItemId(position: Int) = listItems[position].id.hashCode().toLong()
+
+    interface OnMessageLongClickCallback{
+        fun deleteMessage(messageId: String)
+    }
 }

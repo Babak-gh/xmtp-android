@@ -16,10 +16,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.xmtp.android.example.ClientManager
+import org.xmtp.android.example.ContentTypeSoftDelete
 import org.xmtp.android.example.extension.flowWhileShared
 import org.xmtp.android.example.extension.stateFlow
 import org.xmtp.android.library.Conversation
 import org.xmtp.android.library.DecodedMessage
+import org.xmtp.android.library.SendOptions
+import org.xmtp.android.library.codecs.ContentTypeText
 
 class ConversationDetailViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel() {
 
@@ -54,7 +57,18 @@ class ConversationDetailViewModel(private val savedStateHandle: SavedStateHandle
                 conversation?.let {
                     listItems.addAll(
                         it.messages().map { message ->
-                            MessageListItem.Message(message.id, message)
+                            when(message.encodedContent.type){
+                                ContentTypeText -> {
+                                    MessageListItem.Message(message.id, message)
+                                }
+                                ContentTypeSoftDelete -> {
+                                    MessageListItem.Delete(message.id, message)
+                                }
+                                else -> {
+                                    MessageListItem.Message(message.id, message)
+                                }
+                            }
+
                         }
                     )
                 }
@@ -80,7 +94,17 @@ class ConversationDetailViewModel(private val savedStateHandle: SavedStateHandle
                     .flowOn(Dispatchers.IO)
                     .distinctUntilChanged()
                     .mapLatest { message ->
-                        MessageListItem.Message(message.id, message)
+                        when(message.encodedContent.type){
+                            ContentTypeText -> {
+                                MessageListItem.Message(message.id, message)
+                            }
+                            ContentTypeSoftDelete -> {
+                                MessageListItem.Delete(message.id, message)
+                            }
+                            else -> {
+                                MessageListItem.Message(message.id, message)
+                            }
+                        }
                     }
                     .catch { emptyFlow<MessageListItem>() }
             } else {
@@ -94,6 +118,20 @@ class ConversationDetailViewModel(private val savedStateHandle: SavedStateHandle
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 conversation?.send(body)
+                flow.value = SendMessageState.Success
+            } catch (e: Exception) {
+                flow.value = SendMessageState.Error(e.localizedMessage.orEmpty())
+            }
+        }
+        return flow
+    }
+
+    @UiThread
+    fun deleteMessage(messageId: String): StateFlow<SendMessageState> {
+        val flow = MutableStateFlow<SendMessageState>(SendMessageState.Loading)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                conversation?.send(messageId , SendOptions(contentType = ContentTypeSoftDelete))
                 flow.value = SendMessageState.Success
             } catch (e: Exception) {
                 flow.value = SendMessageState.Error(e.localizedMessage.orEmpty())
@@ -117,9 +155,13 @@ class ConversationDetailViewModel(private val savedStateHandle: SavedStateHandle
     sealed class MessageListItem(open val id: String, val itemType: Int) {
         companion object {
             const val ITEM_TYPE_MESSAGE = 1
+            const val ITEM_TYPE_DELETE = 2
         }
 
         data class Message(override val id: String, val message: DecodedMessage) :
             MessageListItem(id, ITEM_TYPE_MESSAGE)
+
+        data class Delete(override val id: String, val message: DecodedMessage) :
+            MessageListItem(id, ITEM_TYPE_DELETE)
     }
 }

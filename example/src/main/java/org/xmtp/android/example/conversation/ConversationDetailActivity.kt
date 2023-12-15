@@ -24,7 +24,7 @@ import org.xmtp.android.example.databinding.ActivityConversationDetailBinding
 import org.xmtp.android.example.extension.truncatedAddress
 import org.xmtp.android.example.message.MessageAdapter
 
-class ConversationDetailActivity : AppCompatActivity() {
+class ConversationDetailActivity : AppCompatActivity(), MessageAdapter.OnMessageLongClickCallback {
 
     private lateinit var binding: ActivityConversationDetailBinding
     private lateinit var adapter: MessageAdapter
@@ -57,6 +57,7 @@ class ConversationDetailActivity : AppCompatActivity() {
         supportActionBar?.subtitle = peerAddress?.truncatedAddress()
 
         adapter = MessageAdapter()
+        adapter.setOnMessageLongClick(this)
         binding.list.layoutManager =
             LinearLayoutManager(this, RecyclerView.VERTICAL, true)
         binding.list.adapter = adapter
@@ -168,5 +169,9 @@ class ConversationDetailActivity : AppCompatActivity() {
     private fun showError(message: String) {
         val error = message.ifBlank { resources.getString(R.string.error) }
         Toast.makeText(this, error, Toast.LENGTH_SHORT).show()
+    }
+
+    override fun deleteMessage(messageId: String) {
+        viewModel.deleteMessage(messageId = messageId)
     }
 }

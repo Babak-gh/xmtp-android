@@ -36,6 +36,7 @@ object ClientManager {
                     PrivateKeyBundleV1Builder.fromEncodedData(data = encodedPrivateKeyData)
                 _client = Client().buildFrom(v1Bundle, CLIENT_OPTIONS)
                 _clientState.value = ClientState.Ready
+                Client.register(SoftDeleteCodec())
             } catch (e: Exception) {
                 _clientState.value = ClientState.Error(e.localizedMessage.orEmpty())
             }
